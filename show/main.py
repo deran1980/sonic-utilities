@@ -668,6 +668,48 @@ def alias(interfacename):
                 body.append([port_name, port_name])
 
     click.echo(tabulate(body, header))
+    
+# 'txmon' subcommand ("show interfaces txmon")  
+@interfaces.command()
+@click.argument('interface', required=False)
+def txmon(interface):
+    """Show Interface TXMON information"""
+
+    state_db = SonicV2Connector(host='127.0.0.1')
+    state_db.connect(state_db.STATE_DB, False)   # Make one attempt only
+    TABLE_NAME_SEPARATOR = '|'
+    prefix_statedb = "STATE_TXMON_TABLE|"
+    _hash = '{}{}'.format(prefix_statedb, '*')
+    # DBInterface keys() method
+    txmon_state_keys = state_db.keys(state_db.STATE_DB, _hash)
+    appl_db = SonicV2Connector(host='127.0.0.1')
+    appl_db.connect(appl_db.APPL_DB, False)
+    prefix_appldb = "APP_TXMON_TABLE:"
+    _hash = '{}{}'.format(prefix_statedb, "*")
+    txmon_appl_keys = appl_db.keys(appl_db.APPL_DB, _hash)
+    table = []
+    if txmon_state_keys:
+        for k in txmon_state_keys:
+            k = k.replace(prefix_statedb, "") 
+            r = []
+            r.append(k)
+
+            r.append(state_db.get(state_db.STATE_DB, prefix_statedb + k, "port_state"))
+            entry = appl_db.get_all(appl_db.APPL_DB, prefix_appldb + k)
+            if not entry or 'counter_val' not in entry:
+                r.append("")
+            else:
+                r.append(entry['counter_val'])
+            if not entry or 'threshold' not in entry:
+                r.append("")
+            else:
+                r.append(entry['threshold'])
+
+            table.append(r)
+
+    header = ['Port', 'status', 'statistics','threshold']
+    click.echo(tabulate(table, header))
+
 
 #
 # 'neighbor' group ###
@@ -1943,6 +1985,20 @@ def system_memory(verbose):
     """Show memory information"""
     cmd = "free -m"
     run_command(cmd, display_cmd=verbose)
+
+@cli.command()
+def txmon():
+    """Show TXMON interval configuration"""
+    output = ''
+    config_db = ConfigDBConnector()
+    config_db.connect()
+    header = ['Status','Interval(Seconds)']
+    txmon_data = config_db.get_table('CFG_TXMON_TABLE')
+    if 'TXMON_TIMER_INTERVAL' in txmon_data:
+        output += ("TXMON timer is enabled. Interval %s" % txmon_data['TXMON_TIMER_INTERVAL']['value']) 
+    else:
+        output += ("TXMON timer is disabled.")
+    click.echo(output)
 
 @cli.group(cls=AliasedGroup, default_if_no_args=False)
 def vlan():

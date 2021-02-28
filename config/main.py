@@ -2002,6 +2002,63 @@ def shutdown(ctx, interface_name):
             config_db.mod_entry("PORTCHANNEL", interface_name, {"admin_status": "down"})
 
 #
+# 'tx_thresh' subcommand
+#
+
+@interface.group()
+@click.pass_context
+def tx_thresh(ctx):
+    """Set or clear interface tx threshold value"""
+    pass
+            
+#
+# 'tx_thresh' subcommand
+#
+
+@tx_thresh.command()
+@click.pass_context
+@click.argument('interface_name', metavar='<interface_name>', required=True)
+@click.argument('tx_thresh', metavar='<tx_thresh>', required=True, type=int)
+def set(ctx, interface_name, tx_thresh):
+    """Set interface tx threshold value"""
+    # Get the config_db connector
+    config_db = ctx.obj['config_db']
+
+    if get_interface_naming_mode() == "alias":
+        interface_name = interface_alias_to_name(config_db, interface_name)
+        if interface_name is None:
+            ctx.fail("'interface_name' is None!")
+            
+    if interface_name_is_valid(config_db, interface_name) is False:
+        ctx.fail("Interface name is invalid. Please enter a valid interface name")
+
+    if interface_name.startswith("Ethernet"):
+        config_db.set_entry('CFG_TXMON_TABLE', (interface_name), {"thresh_val": tx_thresh})
+    else:
+        ctx.fail("Only Ethernet interfaces are supported")
+        
+@tx_thresh.command()
+@click.pass_context
+@click.argument('interface_name', metavar='<interface_name>', required=True)
+def clear(ctx, interface_name):
+    """Clear interface tx threshold value"""
+    # Get the config_db connector
+    config_db = ctx.obj['config_db']
+
+    if get_interface_naming_mode() == "alias":
+        interface_name = interface_alias_to_name(config_db, interface_name)
+        if interface_name is None:
+            ctx.fail("'interface_name' is None!")
+            
+    if interface_name_is_valid(config_db, interface_name) is False:
+        ctx.fail("Interface name is invalid. Please enter a valid interface name")
+
+    if interface_name.startswith("Ethernet"):
+        config_db.set_entry('CFG_TXMON_TABLE', (interface_name), None)
+    else:
+        ctx.fail("Only Ethernet interfaces are supported")
+    
+#
 # 'speed' subcommand
 #
 
@@ -3283,6 +3340,35 @@ def delete(ctx):
 
     sflow_tbl['global'].pop('agent_id')
     config_db.set_entry('SFLOW', 'global', sflow_tbl['global'])
+    
+#
+# 'txmon' group ('config txmon ...')
+#
+@config.group(cls=AbbreviationGroup, name='txmon', invoke_without_command=False)
+def txmon():
+    """Modify global configuration of Tx Monitor"""
+    pass
+    
+#
+# 'period' command ('config txmon period ...')
+#
+@txmon.command('period', short_help="Set global period interval (seconds) for Tx Monitor")
+@click.argument('interval', metavar='<interval>', required=True, type=int)
+def period(interval):
+    """Set global period interval (seconds) for Tx Monitor"""
+    config_db = ConfigDBConnector()
+    config_db.connect()
+    config_db.set_entry("CFG_TXMON_TABLE", ("TXMON_TIMER_INTERVAL"), {"value": interval})
+    
+#
+# 'disable' command ('config txmon disable')
+#
+@txmon.command('disable', short_help="Disable Tx Monitor")
+def disable():
+    """Disable Tx Monitor"""
+    config_db = ConfigDBConnector()
+    config_db.connect()
+    config_db.set_entry("CFG_TXMON_TABLE", ("TXMON_TIMER_INTERVAL"), None)
 
 #
 # 'feature' group ('config feature ...')
